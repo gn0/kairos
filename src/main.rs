@@ -2,6 +2,8 @@ use clap::ArgAction;
 use clap::Parser;
 
 mod config;
+mod page;
+mod pushover;
 
 use crate::config::Config;
 

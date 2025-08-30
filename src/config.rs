@@ -1,27 +1,14 @@
-use scraper::Selector;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use std::path::PathBuf;
+
+use crate::page::Page;
+use crate::pushover::Pushover;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub database: PathBuf,
     pub page: Vec<Page>,
     pub pushover: Option<Pushover>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Page {
-    pub label: String,
-    pub url: String,
-
-    #[serde(deserialize_with = "deserialize_selector")]
-    pub selector: Selector,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Pushover {
-    pub token: String,
-    pub user: String,
 }
 
 impl Config {
@@ -42,15 +29,4 @@ impl Config {
 
         Ok(config)
     }
-}
-
-fn deserialize_selector<'de, D>(
-    deserializer: D,
-) -> Result<Selector, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let selector_str = String::deserialize(deserializer)?;
-
-    Selector::parse(&selector_str).map_err(serde::de::Error::custom)
 }
