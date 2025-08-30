@@ -3,7 +3,7 @@ use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct Page {
-    pub label: String,
+    pub name: String,
     pub url: String,
 
     #[serde(deserialize_with = "deserialize_selector")]
