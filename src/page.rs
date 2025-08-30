@@ -1,4 +1,4 @@
-use scraper::Selector;
+use scraper::{selector::ToCss, ElementRef, Html, Selector};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
@@ -19,4 +19,33 @@ where
     let selector_str = String::deserialize(deserializer)?;
 
     Selector::parse(&selector_str).map_err(serde::de::Error::custom)
+}
+
+impl Page {
+    pub async fn request(&self) -> Result<Vec<Link>, String> {
+        let body = reqwest::get(&self.url)
+            .await
+            .map_err(|x| x.to_string())?
+            .text()
+            .await
+            .map_err(|x| x.to_string())?;
+        let html = Html::parse_fragment(&body);
+
+        Ok(html.select(&self.selector).map(Link::from).collect())
+    }
+}
+
+#[derive(Debug)]
+pub struct Link {
+    pub href: String,
+    pub text: String,
+}
+
+impl From<ElementRef<'_>> for Link {
+    fn from(element: ElementRef<'_>) -> Self {
+        let href = element.attr("href").unwrap_or("").to_string();
+        let text = element.text().collect();
+
+        Self { href, text }
+    }
 }

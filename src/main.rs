@@ -23,9 +23,14 @@ struct Args {
 async fn process(args: &Args) -> Result<(), String> {
     let config = Config::load(&args.config)?;
 
-    dbg!(config);
+    dbg!(&config);
 
     // TODO Implement Page::request.
+    for page in config.page.iter() {
+        for link in page.request().await?.iter() {
+            println!("{}: [{}]({})", page.name, link.text, link.href);
+        }
+    }
 
     // TODO Implement a database backend.
 
