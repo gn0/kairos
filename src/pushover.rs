@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::request::client_with_retry;
+
 #[derive(Debug, Deserialize)]
 pub struct Pushover {
     pub token: String,
@@ -12,7 +14,6 @@ impl Pushover {
         message: &str,
         title: Option<&str>,
     ) -> Result<(), String> {
-        let client = reqwest::Client::new();
         let mut form_data = vec![
             ("token", self.token.as_str()),
             ("user", self.user.as_str()),
@@ -23,7 +24,7 @@ impl Pushover {
             form_data.push(("title", x));
         }
 
-        let status_code = client
+        let status_code = client_with_retry()
             .post("https://api.pushover.net/1/messages.json")
             .form(&form_data)
             .send()
