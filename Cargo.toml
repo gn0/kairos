@@ -8,6 +8,8 @@ clap = { version = "4.5.*", default-features = false, features = ["std", "help",
 env_logger = "0.11.8"
 log = "0.4.27"
 reqwest = "0.12.23"
+reqwest-middleware = "0.4.2"
+reqwest-retry = "0.7.0"
 scraper = "0.24.0"
 serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["macros", "net", "rt"] }

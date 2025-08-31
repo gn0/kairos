@@ -4,6 +4,7 @@ use clap::Parser;
 mod config;
 mod page;
 mod pushover;
+mod request;
 
 use crate::config::Config;
 
