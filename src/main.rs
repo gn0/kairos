@@ -1,12 +1,20 @@
 use clap::ArgAction;
 use clap::Parser;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
 
+mod collection;
 mod config;
+mod database;
 mod page;
 mod pushover;
 mod request;
 
+use crate::collection::Collection;
 use crate::config::Config;
+use crate::database::Database;
+use crate::pushover::Pushover;
 
 /// Command-line interface to open-webui.
 #[derive(Debug, Parser)]
@@ -21,29 +29,72 @@ struct Args {
     verbose: u8,
 }
 
-async fn process(args: &Args) -> Result<(), String> {
-    let config = Config::load(&args.config)?;
+async fn send_notification(
+    collection: &Collection,
+    pushover: &Pushover,
+) -> Result<(), String> {
+    let mut n_pages = 0;
+    let mut chunks = Vec::new();
 
-    dbg!(&config);
+    for (page_name, n_new_links) in collection.counter.iter() {
+        n_pages += 1;
 
-    // TODO Implement Page::request.
-    for page in config.page.iter() {
-        for link in page.request().await?.iter() {
-            println!("{}: [{}]({})", page.name, link.text, link.href);
+        if n_pages <= 2 {
+            chunks.push(format!("{n_new_links} for {page_name}"));
         }
     }
 
-    // TODO Implement a database backend.
+    if n_pages > 2 {
+        chunks.push(format!(
+            "and some more for {} other pages.",
+            n_pages - 2
+        ));
+    }
 
-    // TODO Implement Pushover::send.
+    let message = match n_pages {
+        1 => format!("{}.", chunks[0]),
+        2 => format!("{} and {}.", chunks[0], chunks[1]),
+        _ => chunks.join(", "),
+    };
 
-    // TODO Implement a timer that calls Page::request for each page
-    // once a day.  Implement exponential backoff?
+    pushover
+        .send(
+            &message,
+            Some(&format!(
+                "{} new links",
+                collection.stats.n_new_links
+            )),
+        )
+        .await?;
 
-    todo!()
+    Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
+async fn process(args: &Args) -> Result<(), String> {
+    let config = Config::load(&args.config)?;
+    let database =
+        Arc::new(Mutex::new(Database::try_new(&config.database)?));
+
+    const DUR_24_HOURS: u64 = 24 * 60 * 60;
+    let mut interval =
+        tokio::time::interval(Duration::from_secs(DUR_24_HOURS));
+
+    loop {
+        interval.tick().await;
+
+        let collection =
+            Collection::try_new(&config.page, database.clone()).await?;
+
+        if collection.stats.n_new_links > 0
+            && let Some(ref pushover) = config.pushover
+        {
+            send_notification(&collection, pushover).await?;
+        }
+    }
+}
+
+// #[tokio::main(flavor = "current_thread")]
+#[tokio::main(worker_threads = 2)]
 async fn main() {
     let args = Args::parse();
 
