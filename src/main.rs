@@ -93,8 +93,7 @@ async fn process(args: &Args) -> Result<(), String> {
     }
 }
 
-// #[tokio::main(flavor = "current_thread")]
-#[tokio::main(worker_threads = 2)]
+#[tokio::main]
 async fn main() {
     let args = Args::parse();
 
