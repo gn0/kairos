@@ -1,7 +1,9 @@
-use scraper::{selector::ToCss, ElementRef, Html, Selector};
+use scraper::{ElementRef, Html, Selector};
 use serde::{Deserialize, Deserializer};
 
-#[derive(Debug, Deserialize)]
+use crate::request::client_with_retry;
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Page {
     pub name: String,
     pub url: String,
@@ -23,7 +25,9 @@ where
 
 impl Page {
     pub async fn request(&self) -> Result<Vec<Link>, String> {
-        let body = reqwest::get(&self.url)
+        let body = client_with_retry()
+            .get(&self.url)
+            .send()
             .await
             .map_err(|x| x.to_string())?
             .text()
