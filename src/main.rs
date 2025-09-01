@@ -1,8 +1,6 @@
 use clap::ArgAction;
 use clap::Parser;
-use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 mod collection;
 mod config;
@@ -72,8 +70,7 @@ async fn send_notification(
 
 async fn process(args: &Args) -> Result<(), String> {
     let config = Config::load(&args.config)?;
-    let database =
-        Arc::new(Mutex::new(Database::try_new(&config.database)?));
+    let database = Database::try_new(&config.database)?;
 
     const DUR_24_HOURS: u64 = 24 * 60 * 60;
     let mut interval =
@@ -83,7 +80,7 @@ async fn process(args: &Args) -> Result<(), String> {
         interval.tick().await;
 
         let collection =
-            Collection::try_new(&config.page, database.clone()).await?;
+            Collection::try_new(&config.page, &database).await?;
 
         if collection.stats.n_new_links > 0
             && let Some(ref pushover) = config.pushover

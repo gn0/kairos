@@ -1,10 +1,12 @@
 use rusqlite::Connection;
 use scraper::{selector::ToCss, Selector};
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Database {
-    connection: Connection,
+    connection: Arc<Mutex<Connection>>,
 }
 
 impl Database {
@@ -19,13 +21,17 @@ impl Database {
             .execute_batch(Self::SCHEMA)
             .map_err(|x| format!("database schema: {x}"))?;
 
-        Ok(Self { connection })
+        Ok(Self {
+            connection: Arc::new(Mutex::new(connection)),
+        })
     }
 
-    pub async fn start_collection(&mut self) -> Result<i64, String> {
+    pub async fn start_collection(&self) -> Result<i64, String> {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             self.connection
+                .lock()
+                .await
                 .execute(
                     "INSERT INTO collections (start_time) \
                      VALUES (DATETIME('now', 'utc'))",
@@ -35,13 +41,13 @@ impl Database {
                     format!("database.add_collection: INSERT: {x}")
                 })?;
 
-            Ok(self.connection.last_insert_rowid())
+            Ok(self.connection.lock().await.last_insert_rowid())
         })
         .await
     }
 
     pub async fn end_collection(
-        &mut self,
+        &self,
         collection_id: i64,
         n_pages: u64,
         n_links: u64,
@@ -50,6 +56,8 @@ impl Database {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             self.connection
+                .lock()
+                .await
                 .execute(
                     "UPDATE collections \
                      SET end_time = DATETIME('now', 'utc'), \
@@ -69,7 +77,7 @@ impl Database {
     }
 
     pub async fn add_page(
-        &mut self,
+        &self,
         url: &str,
         selector: &Selector,
     ) -> Result<i64, String> {
@@ -78,6 +86,8 @@ impl Database {
 
             #[rustfmt::skip]
             self.connection
+                .lock()
+                .await
                 .execute(
                     "INSERT OR IGNORE INTO pages (url, selector) \
                      VALUES (?1, ?2)",
@@ -87,13 +97,20 @@ impl Database {
                     format!("database.add_page: INSERT OR IGNORE: {x}")
                 })?;
 
-            let page_id = self.connection
-            .query_row(
-                "SELECT id FROM pages WHERE url = ?1 AND selector = ?2",
-                (url, selector.to_css_string()),
-                |row| row.get(0),
-            )
-            .map_err(|x| format!("database.add_page: SELECT: {x}"))?;
+            #[rustfmt::skip]
+            let page_id = self
+                .connection
+                .lock()
+                .await
+                .query_row(
+                    "SELECT id FROM pages \
+                     WHERE url = ?1 AND selector = ?2",
+                    (url, selector.to_css_string()),
+                    |row| row.get(0),
+                )
+                .map_err(|x| {
+                    format!("database.add_page: SELECT: {x}")
+                })?;
 
             Ok(page_id)
         })
@@ -101,7 +118,7 @@ impl Database {
     }
 
     pub async fn add_link(
-        &mut self,
+        &self,
         page_id: i64,
         href: &str,
         text: &str,
@@ -110,6 +127,8 @@ impl Database {
             #[rustfmt::skip]
             self
             .connection
+            .lock()
+            .await
             .execute(
                 "INSERT OR IGNORE INTO links (page_id, href, text) \
                  VALUES (?1, ?2, ?3)",
@@ -122,6 +141,8 @@ impl Database {
             #[rustfmt::skip]
             let link_id = self
                 .connection
+                .lock()
+                .await
                 .query_row(
                     "SELECT id FROM links \
                      WHERE page_id = ?1 AND href = ?2 AND text = ?3",
@@ -138,7 +159,7 @@ impl Database {
     }
 
     pub async fn link_exists(
-        &mut self,
+        &self,
         page_id: i64,
         href: &str,
         text: &str,
@@ -147,6 +168,8 @@ impl Database {
             #[rustfmt::skip]
             let count: i64 = self
                 .connection
+                .lock()
+                .await
                 .query_row(
                     "SELECT COUNT(*) FROM links \
                      WHERE page_id = ?1 AND href = ?2 AND text = ?3",
@@ -163,7 +186,7 @@ impl Database {
     }
 
     pub async fn add_link_collection(
-        &mut self,
+        &self,
         link_id: i64,
         collection_id: i64,
     ) -> Result<(), String> {
@@ -171,6 +194,8 @@ impl Database {
             #[rustfmt::skip]
             self
             .connection
+            .lock()
+            .await
             .execute(
                 "INSERT INTO links_collections \
                  (link_id, collection_id, timestamp) \

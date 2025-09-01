@@ -1,7 +1,5 @@
 use indexmap::IndexMap;
 use std::ops::Add;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::database::Database;
 use crate::page::Page;
@@ -22,10 +20,9 @@ pub struct CollectionStats {
 impl Collection {
     pub async fn try_new(
         pages: &[Page],
-        database: Arc<Mutex<Database>>,
+        database: &Database,
     ) -> Result<Self, String> {
-        let collection_id =
-            database.lock().await.start_collection().await?;
+        let collection_id = database.start_collection().await?;
         let mut counter = IndexMap::new();
         let mut page_tasks = Vec::new();
 
@@ -72,8 +69,6 @@ impl Collection {
         );
 
         database
-            .lock()
-            .await
             .end_collection(
                 collection_id,
                 total.n_pages,
@@ -106,13 +101,9 @@ impl Add for CollectionStats {
 async fn collect_page(
     page: Page,
     collection_id: i64,
-    database: Arc<Mutex<Database>>,
+    database: Database,
 ) -> Result<CollectionStats, String> {
-    let page_id = database
-        .lock()
-        .await
-        .add_page(&page.url, &page.selector)
-        .await?;
+    let page_id = database.add_page(&page.url, &page.selector).await?;
     let mut n_links = 0;
     let mut n_new_links = 0;
 
@@ -123,8 +114,6 @@ async fn collect_page(
         n_links += 1;
 
         if !database
-            .lock()
-            .await
             .link_exists(page_id, &link.href, &link.text)
             .await?
         {
@@ -132,11 +121,8 @@ async fn collect_page(
             n_new_links += 1;
         }
 
-        let link_id = database
-            .lock()
-            .await
-            .add_link(page_id, &link.href, &link.text)
-            .await?;
+        let link_id =
+            database.add_link(page_id, &link.href, &link.text).await?;
 
         if is_new {
             log::info!(
@@ -154,11 +140,7 @@ async fn collect_page(
             );
         }
 
-        database
-            .lock()
-            .await
-            .add_link_collection(link_id, collection_id)
-            .await?;
+        database.add_link_collection(link_id, collection_id).await?;
     }
 
     Ok(CollectionStats {
