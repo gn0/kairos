@@ -45,7 +45,9 @@ async fn send_notification(
     //    - Only mention the total count for the remaining pages.
     //
 
-    for (page_name, n_new_links) in collection.counter.iter() {
+    for (page_name, n_new_links) in
+        collection.counter.iter().filter(|(_, x)| **x > 0)
+    {
         n_pages += 1;
 
         if n_pages <= 3 {
