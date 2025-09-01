@@ -56,15 +56,17 @@ async fn send_notification(
         _ => chunks.join(", "),
     };
 
-    pushover
-        .send(
-            &message,
-            Some(&format!(
-                "{} new links",
-                collection.stats.n_new_links
-            )),
-        )
-        .await?;
+    let title = {
+        let x = collection.stats.n_new_links;
+
+        if x > 1 {
+            format!("{x} new links")
+        } else {
+            format!("{x} new link")
+        }
+    };
+
+    pushover.send(&message, Some(&title)).await?;
 
     Ok(())
 }
