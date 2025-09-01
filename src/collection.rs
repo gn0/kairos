@@ -45,7 +45,16 @@ impl Collection {
         let mut total: CollectionStats = Default::default();
 
         for (page_name, task) in page_tasks {
-            let stats = task.await.context("collection")??;
+            let stats = match task.await.context("collection")? {
+                Ok(x) => x,
+                Err(error) => {
+                    log::error!(
+                        target: page_name,
+                        "collection failed: {error}"
+                    );
+                    continue;
+                }
+            };
 
             total = total + stats;
 
