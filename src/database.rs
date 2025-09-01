@@ -199,3 +199,58 @@ impl Database {
         .await?
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn add_page_does_not_add_duplicate() {
+        let db = Database::try_new(":memory:").unwrap();
+        let sel = Selector::parse("a").unwrap();
+
+        let id_a = db.add_page("http://foo.bar", &sel).await.unwrap();
+        let id_b = db.add_page("http://foo.bar", &sel).await.unwrap();
+
+        assert_eq!(id_a, id_b);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn add_link_does_not_add_duplicate() {
+        let db = Database::try_new(":memory:").unwrap();
+        let sel = Selector::parse("a").unwrap();
+        let page_id =
+            db.add_page("http://foo.bar", &sel).await.unwrap();
+
+        let id_a = db.add_link(page_id, "/foo", "bar").await.unwrap();
+        let id_b = db.add_link(page_id, "/foo", "bar").await.unwrap();
+
+        assert_eq!(id_a, id_b);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn link_exists_works() {
+        let db = Database::try_new(":memory:").unwrap();
+        let sel = Selector::parse("a").unwrap();
+        let page_id =
+            db.add_page("http://foo.bar", &sel).await.unwrap();
+
+        assert!(!db.link_exists(page_id, "/foo", "bar").await.unwrap());
+        assert!(!db.link_exists(page_id, "/bar", "baz").await.unwrap());
+
+        db.add_link(page_id, "/foo", "bar").await.unwrap();
+
+        assert!(db.link_exists(page_id, "/foo", "bar").await.unwrap());
+        assert!(!db.link_exists(page_id, "/bar", "baz").await.unwrap());
+
+        db.add_link(page_id, "/lorem", "ipsum").await.unwrap();
+
+        assert!(db.link_exists(page_id, "/foo", "bar").await.unwrap());
+        assert!(!db.link_exists(page_id, "/bar", "baz").await.unwrap());
+
+        db.add_link(page_id, "/bar", "baz").await.unwrap();
+
+        assert!(db.link_exists(page_id, "/foo", "bar").await.unwrap());
+        assert!(db.link_exists(page_id, "/bar", "baz").await.unwrap());
+    }
+}
