@@ -1,3 +1,4 @@
+use anyhow::Result;
 use scraper::{ElementRef, Html, Selector};
 use serde::{Deserialize, Deserializer};
 
@@ -14,7 +15,7 @@ pub struct Page {
 
 fn deserialize_selector<'de, D>(
     deserializer: D,
-) -> Result<Selector, D::Error>
+) -> std::result::Result<Selector, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -24,15 +25,13 @@ where
 }
 
 impl Page {
-    pub async fn request(&self) -> Result<Vec<Link>, String> {
+    pub async fn request(&self) -> Result<Vec<Link>> {
         let body = client_with_retry()
             .get(&self.url)
             .send()
-            .await
-            .map_err(|x| x.to_string())?
+            .await?
             .text()
-            .await
-            .map_err(|x| x.to_string())?;
+            .await?;
         let html = Html::parse_fragment(&body);
 
         Ok(html.select(&self.selector).map(Link::from).collect())

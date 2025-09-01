@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use rusqlite::Connection;
 use scraper::{selector::ToCss, Selector};
 use std::path::Path;
@@ -12,21 +13,21 @@ pub struct Database {
 impl Database {
     const SCHEMA: &str = include_str!("schema.sql");
 
-    pub fn try_new(path: impl AsRef<Path>) -> Result<Self, String> {
-        let connection =
-            tokio::task::block_in_place(move || Connection::open(path))
-                .map_err(|x| x.to_string())?;
+    pub fn try_new(path: impl AsRef<Path>) -> Result<Self> {
+        let connection = tokio::task::block_in_place(move || {
+            Connection::open(path)
+        })?;
 
         connection
             .execute_batch(Self::SCHEMA)
-            .map_err(|x| format!("database schema: {x}"))?;
+            .context("database schema")?;
 
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
         })
     }
 
-    pub async fn start_collection(&self) -> Result<i64, String> {
+    pub async fn start_collection(&self) -> Result<i64> {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             self.connection
@@ -37,9 +38,7 @@ impl Database {
                      VALUES (DATETIME('now', 'utc'))",
                     (),
                 )
-                .map_err(|x| {
-                    format!("database.add_collection: INSERT: {x}")
-                })?;
+                .context("database.add_collection: INSERT")?;
 
             Ok(self.connection.lock().await.last_insert_rowid())
         })
@@ -52,7 +51,7 @@ impl Database {
         n_pages: u64,
         n_links: u64,
         n_new_links: u64,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             self.connection
@@ -67,9 +66,7 @@ impl Database {
                      WHERE id = ?4",
                     (n_pages, n_links, n_new_links, collection_id),
                 )
-                .map_err(|x| {
-                    format!("database.end_collection: INSERT: {x}")
-                })?;
+                .context("database.end_collection: INSERT")?;
 
             Ok(())
         })
@@ -80,7 +77,7 @@ impl Database {
         &self,
         url: &str,
         selector: &Selector,
-    ) -> Result<i64, String> {
+    ) -> Result<i64> {
         tokio::task::block_in_place(async move || {
             let selector_str = selector.to_css_string();
 
@@ -93,9 +90,7 @@ impl Database {
                      VALUES (?1, ?2)",
                     (url, &selector_str),
                 )
-                .map_err(|x| {
-                    format!("database.add_page: INSERT OR IGNORE: {x}")
-                })?;
+                .context("database.add_page: INSERT OR IGNORE")?;
 
             #[rustfmt::skip]
             let page_id = self
@@ -108,9 +103,7 @@ impl Database {
                     (url, selector.to_css_string()),
                     |row| row.get(0),
                 )
-                .map_err(|x| {
-                    format!("database.add_page: SELECT: {x}")
-                })?;
+                .context("database.add_page: SELECT")?;
 
             Ok(page_id)
         })
@@ -122,7 +115,7 @@ impl Database {
         page_id: i64,
         href: &str,
         text: &str,
-    ) -> Result<i64, String> {
+    ) -> Result<i64> {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             self
@@ -134,9 +127,7 @@ impl Database {
                  VALUES (?1, ?2, ?3)",
                 (page_id, href, text),
             )
-            .map_err(|x| {
-                format!("database.add_link: INSERT OR IGNORE: {x}")
-            })?;
+            .context("database.add_link: INSERT OR IGNORE")?;
 
             #[rustfmt::skip]
             let link_id = self
@@ -149,9 +140,7 @@ impl Database {
                     (page_id, href, text),
                     |row| row.get(0),
                 )
-                .map_err(|x| {
-                    format!("database.add_link: SELECT: {x}")
-                })?;
+                .context("database.add_link: SELECT")?;
 
             Ok(link_id)
         })
@@ -163,7 +152,7 @@ impl Database {
         page_id: i64,
         href: &str,
         text: &str,
-    ) -> Result<bool, String> {
+    ) -> Result<bool> {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             let count: i64 = self
@@ -176,9 +165,7 @@ impl Database {
                     (page_id, href, text),
                     |row| row.get(0),
                 )
-                .map_err(|x| {
-                    format!("database.link_exists: SELECT: {x}")
-                })?;
+                .context("database.link_exists: SELECT")?;
 
             Ok(count > 0)
         })
@@ -189,7 +176,7 @@ impl Database {
         &self,
         link_id: i64,
         collection_id: i64,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         tokio::task::block_in_place(async move || {
             #[rustfmt::skip]
             self
@@ -202,9 +189,7 @@ impl Database {
                  VALUES (?1, ?2, DATETIME('now', 'utc'))",
                 (link_id, collection_id),
             )
-            .map_err(|x| {
-                format!("database.add_link_collection: INSERT: {x}")
-            })?;
+            .context("database.add_link_collection: INSERT")?;
 
             Ok(())
         })

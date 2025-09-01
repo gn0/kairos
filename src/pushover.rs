@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use serde::Deserialize;
 
 use crate::request::client_with_retry;
@@ -13,7 +14,7 @@ impl Pushover {
         &self,
         message: &str,
         title: Option<&str>,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         let mut form_data = vec![
             ("token", self.token.as_str()),
             ("user", self.user.as_str()),
@@ -28,15 +29,14 @@ impl Pushover {
             .post("https://api.pushover.net/1/messages.json")
             .form(&form_data)
             .send()
-            .await
-            .map_err(|x| x.to_string())?
+            .await?
             .status()
             .as_u16();
 
         if status_code == 200 {
             Ok(())
         } else {
-            Err(format!("pushover: status code {status_code}"))
+            Err(anyhow!("pushover: status code {status_code}"))
         }
     }
 }

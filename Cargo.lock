@@ -937,6 +937,7 @@ dependencies = [
 name = "kairos"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "env_logger",
  "indexmap",

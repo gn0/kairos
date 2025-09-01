@@ -1,3 +1,4 @@
+use anyhow::{bail, Context, Result};
 use indexmap::IndexMap;
 use std::ops::Add;
 
@@ -21,7 +22,7 @@ impl Collection {
     pub async fn try_new(
         pages: &[Page],
         database: &Database,
-    ) -> Result<Self, String> {
+    ) -> Result<Self> {
         let collection_id = database.start_collection().await?;
         let mut counter = IndexMap::new();
         let mut page_tasks = Vec::new();
@@ -44,9 +45,7 @@ impl Collection {
         let mut total: CollectionStats = Default::default();
 
         for (page_name, task) in page_tasks {
-            let stats = task
-                .await
-                .map_err(|x| format!("collection: {x}"))??;
+            let stats = task.await.context("collection")??;
 
             total = total + stats;
 
@@ -55,9 +54,7 @@ impl Collection {
                     entry.and_modify(|x| *x += stats.n_new_links);
                 }
                 indexmap::map::Entry::Vacant(_) => {
-                    return Err(
-                        "collection: IndexMap error".to_string()
-                    );
+                    bail!("collection: IndexMap error");
                 }
             }
         }
@@ -102,7 +99,7 @@ async fn collect_page(
     page: Page,
     collection_id: i64,
     database: Database,
-) -> Result<CollectionStats, String> {
+) -> Result<CollectionStats> {
     let page_id = database.add_page(&page.url, &page.selector).await?;
     let mut n_links = 0;
     let mut n_new_links = 0;

@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -20,12 +21,11 @@ impl Config {
     ///
     /// - the configuration file doesn't exist or
     /// - the configuration file contains a parse error.
-    pub fn load(path: &str) -> Result<Self, String> {
+    pub fn load(path: &str) -> Result<Self> {
         let config: Config = toml::from_str(
             &std::fs::read_to_string(path)
-                .map_err(|error| format!("{path:?}: {error}"))?,
-        )
-        .map_err(|error| error.message().to_string())?;
+                .with_context(|| path.to_string())?,
+        )?;
 
         Ok(config)
     }

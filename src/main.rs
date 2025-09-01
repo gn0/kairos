@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::ArgAction;
 use clap::Parser;
 use std::time::Duration;
@@ -30,7 +31,7 @@ struct Args {
 async fn send_notification(
     collection: &Collection,
     pushover: &Pushover,
-) -> Result<(), String> {
+) -> Result<()> {
     let mut n_pages = 0;
     let mut chunks = Vec::new();
 
@@ -68,7 +69,7 @@ async fn send_notification(
     Ok(())
 }
 
-async fn process(args: &Args) -> Result<(), String> {
+async fn process(args: &Args) -> Result<()> {
     let config = Config::load(&args.config)?;
     let database = Database::try_new(&config.database)?;
 
