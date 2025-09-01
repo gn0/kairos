@@ -2,6 +2,8 @@ use anyhow::Result;
 use clap::ArgAction;
 use clap::Parser;
 use std::time::Duration;
+use tokio::signal::unix::SignalKind;
+use tokio_util::sync::CancellationToken;
 
 mod collection;
 mod config;
@@ -13,6 +15,7 @@ mod request;
 use crate::collection::Collection;
 use crate::config::Config;
 use crate::database::Database;
+use crate::page::Page;
 use crate::pushover::Pushover;
 
 /// Command-line interface to open-webui.
@@ -31,6 +34,7 @@ struct Args {
 async fn send_notification(
     collection: &Collection,
     pushover: &Pushover,
+    cancellation_token: CancellationToken,
 ) -> Result<()> {
     let mut n_pages = 0;
     let mut chunks = Vec::new();
@@ -83,30 +87,96 @@ async fn send_notification(
         }
     };
 
-    pushover.send(&message, Some(&title)).await?;
+    pushover
+        .send(&message, Some(&title), cancellation_token)
+        .await?;
+
+    Ok(())
+}
+
+async fn collect_and_notify(
+    pages: &[Page],
+    database: &Database,
+    pushover: Option<&Pushover>,
+    cancellation_token: CancellationToken,
+) -> Result<()> {
+    let collection = Collection::try_new(
+        pages,
+        database,
+        cancellation_token.clone(),
+    )
+    .await?;
+
+    if collection.stats.n_new_links > 0
+        && let Some(x) = pushover
+    {
+        send_notification(&collection, x, cancellation_token).await?;
+    }
 
     Ok(())
 }
 
 async fn process(args: &Args) -> Result<()> {
-    let config = Config::load(&args.config)?;
+    let mut config = Config::load(&args.config)?;
     let database = Database::try_new(&config.database)?;
+
+    let mut sighup = tokio::signal::unix::signal(SignalKind::hangup())?;
+    let mut sigusr1 =
+        tokio::signal::unix::signal(SignalKind::user_defined1())?;
+    let mut current_task: Option<CancellationToken> = None;
 
     const DUR_24_HOURS: u64 = 24 * 60 * 60;
     let mut interval =
         tokio::time::interval(Duration::from_secs(DUR_24_HOURS));
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            _ = sighup.recv() => {
+                log::info!("reloading config from {:?}", args.config);
+                match Config::load(&args.config) {
+                    Ok(x) => config = x,
+                    Err(x) => log::error!("{x}"),
+                }
+            },
+            _ = sigusr1.recv() => match current_task {
+                Some(token) => {
+                    log::info!("cancelling collection");
+                    token.cancel();
+                    current_task = None;
+                }
+                None => {
+                    log::info!("no collection to cancel")
+                }
+            },
+            _ = interval.tick() => {
+                let pages = config.page.clone();
+                let pushover = config.pushover.clone();
+                let database = database.clone();
 
-        let collection =
-            Collection::try_new(&config.page, &database).await?;
+                if let Some(token) = current_task {
+                    log::info!(
+                        "collection still in process; cancelling"
+                    );
+                    token.cancel();
+                }
 
-        if collection.stats.n_new_links > 0
-            && let Some(ref pushover) = config.pushover
-        {
-            send_notification(&collection, pushover).await?;
-        }
+                let token = CancellationToken::new();
+                let token_clone = token.clone();
+
+                tokio::task::spawn(async move {
+                    if let Err(x) = collect_and_notify(
+                        &pages,
+                        &database,
+                        pushover.as_ref(),
+                        token_clone,
+                    ).await {
+                        log::error!("collection: {x}");
+                    }
+                });
+
+                current_task = Some(token);
+            },
+        };
     }
 }
 

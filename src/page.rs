@@ -1,8 +1,9 @@
 use anyhow::Result;
 use scraper::{ElementRef, Html, Selector};
 use serde::{Deserialize, Deserializer};
+use tokio_util::sync::CancellationToken;
 
-use crate::request::client_with_retry;
+use crate::request;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Page {
@@ -25,10 +26,11 @@ where
 }
 
 impl Page {
-    pub async fn request(&self) -> Result<Vec<Link>> {
-        let body = client_with_retry()
-            .get(&self.url)
-            .send()
+    pub async fn request(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<Vec<Link>> {
+        let body = request::get(&self.url, cancellation_token)
             .await?
             .text()
             .await?;

@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
+use tokio_util::sync::CancellationToken;
 
-use crate::request::client_with_retry;
+use crate::request;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Pushover {
     pub token: String,
     pub user: String,
@@ -14,6 +15,7 @@ impl Pushover {
         &self,
         message: &str,
         title: Option<&str>,
+        cancellation_token: CancellationToken,
     ) -> Result<()> {
         let mut form_data = vec![
             ("token", self.token.as_str()),
@@ -25,13 +27,14 @@ impl Pushover {
             form_data.push(("title", x));
         }
 
-        let status_code = client_with_retry()
-            .post("https://api.pushover.net/1/messages.json")
-            .form(&form_data)
-            .send()
-            .await?
-            .status()
-            .as_u16();
+        let status_code = request::post(
+            "https://api.pushover.net/1/messages.json",
+            &form_data,
+            cancellation_token,
+        )
+        .await?
+        .status()
+        .as_u16();
 
         if status_code == 200 {
             Ok(())

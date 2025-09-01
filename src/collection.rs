@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use indexmap::IndexMap;
 use std::ops::Add;
+use tokio_util::sync::CancellationToken;
 
 use crate::database::Database;
 use crate::page::Page;
@@ -22,6 +23,7 @@ impl Collection {
     pub async fn try_new(
         pages: &[Page],
         database: &Database,
+        cancellation_token: CancellationToken,
     ) -> Result<Self> {
         let collection_id = database.start_collection().await?;
         let mut counter = IndexMap::new();
@@ -38,6 +40,7 @@ impl Collection {
                     page.clone(),
                     collection_id,
                     database.clone(),
+                    cancellation_token.clone(),
                 )),
             ));
         }
@@ -108,6 +111,7 @@ async fn collect_page(
     page: Page,
     collection_id: i64,
     database: Database,
+    cancellation_token: CancellationToken,
 ) -> Result<CollectionStats> {
     let page_id = database.add_page(&page.url, &page.selector).await?;
     let mut n_links = 0;
@@ -115,7 +119,7 @@ async fn collect_page(
 
     log::info!(target: &page.name, "page ID {page_id}");
 
-    for link in page.request().await?.iter() {
+    for link in page.request(cancellation_token).await?.iter() {
         let mut is_new = false;
         n_links += 1;
 
