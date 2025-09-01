@@ -216,6 +216,14 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn add_link_requires_valid_page_id() {
+        let db = Database::try_new(":memory:").unwrap();
+        let nonexistent = 1;
+
+        assert!(db.add_link(nonexistent, "/foo", "bar").await.is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn add_link_does_not_add_duplicate() {
         let db = Database::try_new(":memory:").unwrap();
         let sel = Selector::parse("a").unwrap();
