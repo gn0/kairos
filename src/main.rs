@@ -35,25 +35,40 @@ async fn send_notification(
     let mut n_pages = 0;
     let mut chunks = Vec::new();
 
+    // There are two cases that determine how the message is composed:
+    //
+    // 1. There are at most three pages with new links.
+    //    - Mention the new link count for each page.
+    //
+    // 2. There are four or more pages with new links.
+    //    - Mention the new link counts for the first two pages.
+    //    - Only mention the total count for the remaining pages.
+    //
+
     for (page_name, n_new_links) in collection.counter.iter() {
         n_pages += 1;
 
-        if n_pages <= 2 {
+        if n_pages <= 3 {
             chunks.push(format!("{n_new_links} for {page_name}"));
         }
-    }
-
-    if n_pages > 2 {
-        chunks.push(format!(
-            "and some more for {} other pages.",
-            n_pages - 2
-        ));
     }
 
     let message = match n_pages {
         1 => format!("{}.", chunks[0]),
         2 => format!("{} and {}.", chunks[0], chunks[1]),
-        _ => chunks.join(", "),
+        3 => {
+            format!("{}, {}, and {}.", chunks[0], chunks[1], chunks[2])
+        }
+        _ => {
+            if let Some(chunk) = chunks.get_mut(2) {
+                *chunk = format!(
+                    "and some more for {} other pages.",
+                    n_pages - 2
+                );
+            }
+
+            chunks.join(", ")
+        }
     };
 
     let title = {
