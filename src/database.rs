@@ -216,6 +216,29 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn add_page_accounts_for_url() {
+        let db = Database::try_new(":memory:").unwrap();
+        let sel = Selector::parse("a").unwrap();
+
+        let id_a = db.add_page("http://foo/bar", &sel).await.unwrap();
+        let id_b = db.add_page("http://foo/baz", &sel).await.unwrap();
+
+        assert_ne!(id_a, id_b);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn add_page_accounts_for_selector() {
+        let db = Database::try_new(":memory:").unwrap();
+        let sel_a = Selector::parse("a[href^='/foo']").unwrap();
+        let sel_b = Selector::parse("a[href^='/bar']").unwrap();
+
+        let id_a = db.add_page("http://foo.bar", &sel_a).await.unwrap();
+        let id_b = db.add_page("http://foo.bar", &sel_b).await.unwrap();
+
+        assert_ne!(id_a, id_b);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn add_link_requires_valid_page_id() {
         let db = Database::try_new(":memory:").unwrap();
         let nonexistent = 1;
