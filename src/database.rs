@@ -28,11 +28,12 @@ impl Database {
     }
 
     pub async fn start_collection(&self) -> Result<i64> {
-        tokio::task::block_in_place(async move || {
+        let connection = self.connection.clone();
+
+        tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
-            self.connection
-                .lock()
-                .await
+            connection
+                .blocking_lock()
                 .execute(
                     "INSERT INTO collections (start_time) \
                      VALUES (DATETIME('now', 'utc'))",
@@ -40,9 +41,9 @@ impl Database {
                 )
                 .context("database.add_collection: INSERT")?;
 
-            Ok(self.connection.lock().await.last_insert_rowid())
+            Ok(connection.blocking_lock().last_insert_rowid())
         })
-        .await
+        .await?
     }
 
     pub async fn end_collection(
@@ -52,11 +53,12 @@ impl Database {
         n_links: u64,
         n_new_links: u64,
     ) -> Result<()> {
-        tokio::task::block_in_place(async move || {
+        let connection = self.connection.clone();
+
+        tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
-            self.connection
-                .lock()
-                .await
+            connection
+                .blocking_lock()
                 .execute(
                     "UPDATE collections \
                      SET end_time = DATETIME('now', 'utc'), \
@@ -70,7 +72,7 @@ impl Database {
 
             Ok(())
         })
-        .await
+        .await?
     }
 
     pub async fn add_page(
@@ -78,36 +80,35 @@ impl Database {
         url: &str,
         selector: &Selector,
     ) -> Result<i64> {
-        tokio::task::block_in_place(async move || {
-            let selector_str = selector.to_css_string();
+        let connection = self.connection.clone();
+        let url = url.to_string();
+        let selector_str = selector.to_css_string();
 
+        tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
-            self.connection
-                .lock()
-                .await
+            connection
+                .blocking_lock()
                 .execute(
                     "INSERT OR IGNORE INTO pages (url, selector) \
                      VALUES (?1, ?2)",
-                    (url, &selector_str),
+                    (&url, &selector_str),
                 )
                 .context("database.add_page: INSERT OR IGNORE")?;
 
             #[rustfmt::skip]
-            let page_id = self
-                .connection
-                .lock()
-                .await
+            let page_id = connection
+                .blocking_lock()
                 .query_row(
                     "SELECT id FROM pages \
                      WHERE url = ?1 AND selector = ?2",
-                    (url, selector.to_css_string()),
+                    (&url, &selector_str),
                     |row| row.get(0),
                 )
                 .context("database.add_page: SELECT")?;
 
             Ok(page_id)
         })
-        .await
+        .await?
     }
 
     pub async fn add_link(
@@ -116,35 +117,35 @@ impl Database {
         href: &str,
         text: &str,
     ) -> Result<i64> {
-        tokio::task::block_in_place(async move || {
+        let connection = self.connection.clone();
+        let href = href.to_string();
+        let text = text.to_string();
+
+        tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
-            self
-            .connection
-            .lock()
-            .await
+            connection
+            .blocking_lock()
             .execute(
                 "INSERT OR IGNORE INTO links (page_id, href, text) \
                  VALUES (?1, ?2, ?3)",
-                (page_id, href, text),
+                (page_id, &href, &text),
             )
             .context("database.add_link: INSERT OR IGNORE")?;
 
             #[rustfmt::skip]
-            let link_id = self
-                .connection
-                .lock()
-                .await
+            let link_id = connection
+                .blocking_lock()
                 .query_row(
                     "SELECT id FROM links \
                      WHERE page_id = ?1 AND href = ?2 AND text = ?3",
-                    (page_id, href, text),
+                    (page_id, &href, &text),
                     |row| row.get(0),
                 )
                 .context("database.add_link: SELECT")?;
 
             Ok(link_id)
         })
-        .await
+        .await?
     }
 
     pub async fn link_exists(
@@ -153,23 +154,25 @@ impl Database {
         href: &str,
         text: &str,
     ) -> Result<bool> {
-        tokio::task::block_in_place(async move || {
+        let connection = self.connection.clone();
+        let href = href.to_string();
+        let text = text.to_string();
+
+        tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
-            let count: i64 = self
-                .connection
-                .lock()
-                .await
+            let count: i64 = connection
+                .blocking_lock()
                 .query_row(
                     "SELECT COUNT(*) FROM links \
                      WHERE page_id = ?1 AND href = ?2 AND text = ?3",
-                    (page_id, href, text),
+                    (page_id, &href, &text),
                     |row| row.get(0),
                 )
                 .context("database.link_exists: SELECT")?;
 
             Ok(count > 0)
         })
-        .await
+        .await?
     }
 
     pub async fn add_link_collection(
@@ -177,12 +180,12 @@ impl Database {
         link_id: i64,
         collection_id: i64,
     ) -> Result<()> {
-        tokio::task::block_in_place(async move || {
+        let connection = self.connection.clone();
+
+        tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
-            self
-            .connection
-            .lock()
-            .await
+            connection
+            .blocking_lock()
             .execute(
                 "INSERT INTO links_collections \
                  (link_id, collection_id, timestamp) \
@@ -193,6 +196,6 @@ impl Database {
 
             Ok(())
         })
-        .await
+        .await?
     }
 }
