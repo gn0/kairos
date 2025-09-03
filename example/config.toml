@@ -1,5 +1,11 @@
 database = "jobs.db"
 
+# Pushover configuration for push notifications.
+#
+# [pushover]
+# token = "7b1fvzmr2g4xkkzs8xvzjm5eud80zt"
+# user = "r2pxpt83a85uqjmihfm9heuoc5u363"
+
 [[page]]
 name = "Plain"
 url = "http://127.0.0.1:5000/plain.html"
