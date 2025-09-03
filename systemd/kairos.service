@@ -1,0 +1,30 @@
+[Unit]
+Description=Kairos Link Monitoring Service
+Documentation=https://github.com/gn0/kairos
+After=network-online.target firewalld.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# WorkingDirectory=%h/.config/kairos
+# ExecStart=%h/.cargo/bin/kairos --verbose --config config.toml
+ExecStart=/usr/bin/bwrap \
+    --ro-bind /etc/ca-certificates /etc/ca-certificates \
+    --ro-bind /etc/resolv.conf /etc/resolv.conf \
+    --ro-bind /etc/ssl /etc/ssl \
+    --ro-bind /lib /lib \
+    --ro-bind /lib64 /lib64 \
+    --ro-bind %h/.cargo/bin/kairos /app/bin/kairos \
+    --bind %h/.config/kairos /app/data \
+    --tmpfs /tmp \
+    --unshare-all \
+    --unshare-user \
+    --share-net \
+    --chdir /app/data \
+    -- \
+    /app/bin/kairos --verbose --config config.toml
+ExecReload=/bin/kill -s HUP $MAINPID
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target
