@@ -7,6 +7,18 @@ Its motivating use case is to monitor job postings.
 
 (And to give me an opportunity to practice async Rust.)
 
+## Contents
+
+1. [Features](#features)
+2. [Installation](#installation)
+3. [Usage](#usage)
+   - [Launch Kairos](#launch-kairos)
+   - [Sandboxing](#sandboxing)
+   - [Reload the configuration](#reload-the-configuration)
+   - [Cancel currently running collection](#cancel-currently-running-collection)
+   - [Testing CSS selectors](#testing-css-selectors)
+4. [License](#license)
+
 ## Features
 
 + [X] Configure in plain text via a single TOML file.
