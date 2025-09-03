@@ -113,7 +113,7 @@ async fn collect_page(
     database: Database,
     cancellation_token: CancellationToken,
 ) -> Result<CollectionStats> {
-    let page_id = database.add_page(&page.url, &page.selector).await?;
+    let page_id = database.add_page(&page.url, &page.extract).await?;
     let mut n_links = 0;
     let mut n_new_links = 0;
 

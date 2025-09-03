@@ -10,11 +10,11 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS pages (
     id INTEGER PRIMARY KEY,
     url TEXT,
-    selector TEXT
+    extract TEXT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS pages_url_selector_idx
-    ON pages (url, selector);
+CREATE UNIQUE INDEX IF NOT EXISTS pages_url_extract_idx
+    ON pages (url, extract);
 
 CREATE TABLE IF NOT EXISTS links (
     id INTEGER PRIMARY KEY,

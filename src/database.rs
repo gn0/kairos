@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use rusqlite::Connection;
-use scraper::{selector::ToCss, Selector};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+use crate::page::Extract;
 
 #[derive(Debug, Clone)]
 pub struct Database {
@@ -78,20 +79,20 @@ impl Database {
     pub async fn add_page(
         &self,
         url: &str,
-        selector: &Selector,
+        extract: &Extract,
     ) -> Result<i64> {
         let connection = self.connection.clone();
         let url = url.to_string();
-        let selector_str = selector.to_css_string();
+        let extract_str = extract.to_string();
 
         tokio::task::spawn_blocking(move || {
             #[rustfmt::skip]
             connection
                 .blocking_lock()
                 .execute(
-                    "INSERT OR IGNORE INTO pages (url, selector) \
+                    "INSERT OR IGNORE INTO pages (url, extract) \
                      VALUES (?1, ?2)",
-                    (&url, &selector_str),
+                    (&url, &extract_str),
                 )
                 .context("database.add_page: INSERT OR IGNORE")?;
 
@@ -100,8 +101,8 @@ impl Database {
                 .blocking_lock()
                 .query_row(
                     "SELECT id FROM pages \
-                     WHERE url = ?1 AND selector = ?2",
-                    (&url, &selector_str),
+                     WHERE url = ?1 AND extract = ?2",
+                    (&url, &extract_str),
                     |row| row.get(0),
                 )
                 .context("database.add_page: SELECT")?;
@@ -203,14 +204,16 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use scraper::selector::Selector;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn add_page_does_not_add_duplicate() {
         let db = Database::try_new(":memory:").unwrap();
         let sel = Selector::parse("a").unwrap();
+        let ex = Extract::CSSPlain(sel);
 
-        let id_a = db.add_page("http://foo.bar", &sel).await.unwrap();
-        let id_b = db.add_page("http://foo.bar", &sel).await.unwrap();
+        let id_a = db.add_page("http://foo.bar", &ex).await.unwrap();
+        let id_b = db.add_page("http://foo.bar", &ex).await.unwrap();
 
         assert_eq!(id_a, id_b);
     }
@@ -219,21 +222,24 @@ mod tests {
     async fn add_page_accounts_for_url() {
         let db = Database::try_new(":memory:").unwrap();
         let sel = Selector::parse("a").unwrap();
+        let ex = Extract::CSSPlain(sel);
 
-        let id_a = db.add_page("http://foo/bar", &sel).await.unwrap();
-        let id_b = db.add_page("http://foo/baz", &sel).await.unwrap();
+        let id_a = db.add_page("http://foo/bar", &ex).await.unwrap();
+        let id_b = db.add_page("http://foo/baz", &ex).await.unwrap();
 
         assert_ne!(id_a, id_b);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-    async fn add_page_accounts_for_selector() {
+    async fn add_page_accounts_for_extract() {
         let db = Database::try_new(":memory:").unwrap();
         let sel_a = Selector::parse("a[href^='/foo']").unwrap();
         let sel_b = Selector::parse("a[href^='/bar']").unwrap();
+        let ex_a = Extract::CSSPlain(sel_a);
+        let ex_b = Extract::CSSPlain(sel_b);
 
-        let id_a = db.add_page("http://foo.bar", &sel_a).await.unwrap();
-        let id_b = db.add_page("http://foo.bar", &sel_b).await.unwrap();
+        let id_a = db.add_page("http://foo.bar", &ex_a).await.unwrap();
+        let id_b = db.add_page("http://foo.bar", &ex_b).await.unwrap();
 
         assert_ne!(id_a, id_b);
     }
@@ -250,8 +256,8 @@ mod tests {
     async fn add_link_does_not_add_duplicate() {
         let db = Database::try_new(":memory:").unwrap();
         let sel = Selector::parse("a").unwrap();
-        let page_id =
-            db.add_page("http://foo.bar", &sel).await.unwrap();
+        let ex = Extract::CSSPlain(sel);
+        let page_id = db.add_page("http://foo.bar", &ex).await.unwrap();
 
         let id_a = db.add_link(page_id, "/foo", "bar").await.unwrap();
         let id_b = db.add_link(page_id, "/foo", "bar").await.unwrap();
@@ -263,8 +269,8 @@ mod tests {
     async fn link_exists_works() {
         let db = Database::try_new(":memory:").unwrap();
         let sel = Selector::parse("a").unwrap();
-        let page_id =
-            db.add_page("http://foo.bar", &sel).await.unwrap();
+        let ex = Extract::CSSPlain(sel);
+        let page_id = db.add_page("http://foo.bar", &ex).await.unwrap();
 
         assert!(!db.link_exists(page_id, "/foo", "bar").await.unwrap());
         assert!(!db.link_exists(page_id, "/bar", "baz").await.unwrap());

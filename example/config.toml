@@ -1,6 +1,53 @@
 database = "jobs.db"
 
 [[page]]
-name = "Test Employer"
-url = "http://127.0.0.1:5000/jobs.html"
-selector = "a[href*='/jobs?id=']"
+name = "Plain"
+url = "http://127.0.0.1:5000/plain.html"
+#
+# Select elements like:
+#
+#     <a href="/foo/jobs?id=bar">Bar</a>
+#
+# With a CSS selector:
+#
+extract = "a[href*='/jobs?id=']"
+#
+# With an XPath expression:
+#
+# extract = "//a[contains(@href, '/jobs?id=')]"
+
+[[page]]
+name = "Detailed 1"
+url = "http://127.0.0.1:5000/detailed_1.html"
+#
+# Extract information from elements like:
+#
+#     <h2 class="posting">
+#       <a href="/foo/jobs?id=bar">
+#         <span class="sr-only">Foo</span>
+#         Bar
+#       </a>
+#     </h2>
+#
+# With XPath expressions (first alternative):
+#
+extract = { container = "//h2[@class = 'posting']", href-path = "./a/@href", text-path = "normalize-space(./a/span/following-sibling::text())" }
+#
+# With XPath expressions (second alternative):
+#
+# extract = { container = "//h2[@class = 'posting']", href-path = "./a/@href", text-path = "normalize-space(./a/text()[last()])" }
+
+[[page]]
+name = "Detailed 2"
+url = "http://127.0.0.1:5000/detailed_2.html"
+#
+# Extract information from elements like:
+#
+#     <a class="posting" href="/foo/jobs?id=bar">
+#       <strong>Bar</strong>
+#       <button>Foo</button>
+#     </a>
+#
+# With XPath expressions:
+#
+extract = { container = "//a[@class = 'posting']", href-path = "./@href", text-path = "./strong/text()" }

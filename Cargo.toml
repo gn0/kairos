@@ -8,6 +8,7 @@ anyhow = "1.0.99"
 clap = { version = "4.5.*", default-features = false, features = ["std", "help", "usage", "error-context", "suggestions", "derive"] }
 env_logger = "0.11.8"
 indexmap = "2.11.0"
+libxml = "0.3.7"
 log = "0.4.27"
 reqwest = "0.12.23"
 reqwest-middleware = "0.4.2"
