@@ -2,6 +2,8 @@
   <img src="https://raw.githubusercontent.com/gn0/kairos/main/logo/logo_128x128.png" alt="Kairos" />
 </h1>
 
+[![ci](https://github.com/gn0/kairos/actions/workflows/ci.yml/badge.svg)](https://github.com/gn0/kairos/actions/workflows/ci.yml)
+
 Kairos is a link monitor that logs, and alerts you to, new links on websites that you specify in its configuration.
 Its motivating use case is to monitor job postings.
 
