@@ -118,8 +118,6 @@ async fn collect_and_notify(
 
 async fn process(args: &Args) -> Result<()> {
     let mut config = Config::load(&args.config)?;
-    let database = Database::try_new(&config.database)?;
-
     let mut sighup = tokio::signal::unix::signal(SignalKind::hangup())?;
     let mut sigusr1 =
         tokio::signal::unix::signal(SignalKind::user_defined1())?;
@@ -151,7 +149,7 @@ async fn process(args: &Args) -> Result<()> {
             _ = interval.tick() => {
                 let pages = config.page.clone();
                 let pushover = config.pushover.clone();
-                let database = database.clone();
+                let database = Database::try_new(&config.database)?;
 
                 if let Some(token) = current_task {
                     log::info!(
